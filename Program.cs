@@ -6,6 +6,82 @@ using System.Threading.Tasks;
 
 namespace ConsoleApp1
 {
+    class PriorityQueue3 //RR 기준
+    {
+        // 힙 트리는 배열로 관리할 수 있다.
+        public List<Process> _heap = new List<Process>();
+
+        public void Push(Process data)
+        {
+            // 힙의 맨 끝에 새로운 데이터를 삽입한다.
+            _heap.Add(data);
+
+            int now = _heap.Count - 1;  // 추가한 노드의 위치. 힙의 맨 끝에서 시작.
+
+            // 위로 도장 깨기 시작
+            while (now > 0)
+            {
+                int next = (now - 1) / 2;  // 부모 노드
+                if ((_heap[now].WT+ _heap[now].BT)/ _heap[next].BT > (_heap[next].WT + _heap[next].BT) / _heap[next].BT)  // 부모 노드와 비교
+                    break;
+
+                // 두 값을 서로 자리 바꿈
+                Process temp = _heap[now];
+                _heap[now] = _heap[next];
+                _heap[next] = temp;
+
+                // 검사 위치로 이동한다.
+                now = next;
+            }
+        }
+
+        public Process Pop()  // 최대값(루트)을 뽑아낸다.
+        {
+            // 반환할 데이터를 따로 저장
+            Process ret = _heap[0];
+
+            // 마지막 데이터를 루트로 이동시킨다.
+            int lastIndex = _heap.Count - 1;
+            _heap[0] = _heap[lastIndex];
+            _heap.RemoveAt(lastIndex);
+            lastIndex--;
+
+            // 아래로 도장 깨기 시작
+            int now = 0;
+            while (true)
+            {
+                int left = 2 * now + 1;
+                int right = 2 * now + 2;
+
+                int next = now;
+                // 왼쪽 값이 현재값보다 크면, 왼쪽으로 이동
+                if (left <= lastIndex && (_heap[next].WT + _heap[next].BT) / _heap[next].BT > (_heap[left].WT + _heap[left].BT) / _heap[left].BT)
+                    next = left;
+                // 오른쪽 값이 현재값(왼쪽 이동 포함)보다 크면, 오른쪽으로 이동
+                if (right <= lastIndex && (_heap[next].WT + _heap[next].BT) / _heap[next].BT > (_heap[right].WT + _heap[right].BT) / _heap[right].BT)
+                    next = right;
+
+                // 왼쪽/오른쪽 모두 현재값보다 작으면 종료
+                if (next == now)
+                    break;
+
+                // 두 값 서로 자리 바꿈
+                Process temp = _heap[now];
+                _heap[now] = _heap[next];
+                _heap[next] = temp;
+
+                // 검사 위치로 이동한다.
+                now = next;
+            }
+
+            return ret;
+        }
+
+        public int Count()
+        {
+            return _heap.Count;
+        }
+    }
     class PriorityQueue2 //AT 기준
     {
         // 힙 트리는 배열로 관리할 수 있다.
@@ -255,6 +331,13 @@ namespace ConsoleApp1
             for (int i = 0; i < process_n; i++)
             {
                 wt[i] = process_arr[i].TT - process_arr[i].RBT;
+            }
+        }
+        public void CalHRRN_WT(int r) // TT-BT
+        {
+            for (int i = 0; i < process_n; i++)
+            {
+                wt[i] = r - process_arr[i].AT;
             }
         }
         public void CalTT() // terminateTime - (st_t)
@@ -511,6 +594,139 @@ namespace ConsoleApp1
             }
 
         }
+        public void HRRN()
+        {
+            PriorityQueue2 at_pq = new PriorityQueue2();
+            for (int i = 0; i < process_n; i++)
+            {  //AT우선순위 큐에 프로세스들 넣기
+                at_pq.Push(process_arr[i]);
+            }
+            List<Process> readyList_AT = new List<Process>();
+            for (int i = 0; i < process_n; i++)
+            {  //AT우선순위 큐를 리스트로 복사
+                readyList_AT.Add(at_pq.Pop());
+            }
+            PriorityQueue3 ready_q = new PriorityQueue3();
+            int stAT = readyList_AT[0].AT;
+            CalHRRN_WT(0);
+            Process[] p_st = new Process[processor_n]; //프로세서가 실행 중인 프로세스 확인
+            int pr_chn = 0;
+            while (readyList_AT[0].AT == stAT) //최초 AT가 제일 작은 프로세스와 같은 AT의 프로세스들을 큐에 담음
+            {
+                ready_q.Push(readyList_AT[0]);
+                readyList_AT.RemoveAt(0);
+            }
+            while (pr_chn < processor_n)
+            {
+                if (pr_chn < ready_q.Count())
+                {
+                    p_st[pr_chn] = ready_q.Pop();
+                }
+                else
+                {
+                    p_st[pr_chn] = null;
+                }
+                pr_chn++;
+            }
+            int run_t = 0;
+            int null_c = 0;
+            while (readyList_AT.Count() != 0 || ready_q.Count() != 0 || null_c < processor_n)
+            {
+                null_c = 0;
+                for (int i = 0; i < processor_n; i++)
+                {
+                    if (p_st[i] == null)
+                    {
+                        processor_arr[i].work.Add(-1);
+                        null_c++;
+                    }
+                    else
+                    {
+                        if (processor_arr[i].core == 'p')
+                        {
+                            processor_arr[i].work.Add(p_st[i].PID);
+                            p_st[i].re_t -= 2;
+                            p_st[i].RBT++;
+                        }
+                        else
+                        {
+                            processor_arr[i].work.Add(p_st[i].PID);
+                            p_st[i].re_t--;
+                            p_st[i].RBT++;
+                        }
+                        if (p_st[i].fi_c)
+                        {
+                            st_t[p_st[i].PID] = run_t;
+                            p_st[i].fi_c = false;
+                        }
+                    }
+                    if (p_st[i] != null && p_st[i].re_t <= 0)
+                    {
+                        p_st[i].terminateTime = run_t + 1;
+                        p_st[i] = null;
+                        null_c++;
+                    }
+                }
+                run_t++;
+                int idx = 0;
+                while (readyList_AT.Count != 0 && readyList_AT[idx].AT <= run_t)
+                {
+                    /////////재정렬////////////////
+                    CalHRRN_WT(run_t);
+                    List<Process> resortli = new List<Process>();
+                    for(int j = 0; j<ready_q.Count(); j++)
+                    {
+                        resortli.Add(ready_q.Pop());
+                    }
+                    for (int j = 0; j < resortli.Count(); j++)
+                    {
+                        ready_q.Push(resortli[0]);
+                        resortli.RemoveAt(0);
+                    }
+                    ready_q.Push(readyList_AT[0]);
+                    readyList_AT.RemoveAt(0);
+                    ///////////////////////////////////////
+                }
+                if (ready_q.Count() != 0)
+                {
+                    if (null_c > 0)
+                    {
+                        for (int j = 0; j < processor_n; j++)
+                        {
+                            if (p_st[j] == null && null_c > 0 && ready_q.Count() != 0)
+                            {
+                                p_st[j] = ready_q.Pop();
+                                null_c--;
+                            }
+                        }
+                    }
+                }
+            }
+            core_power();
+            CalTT();
+            for (int i = 0; i < process_n; i++)
+            {
+                process_arr[i].TT = tt[i];
+            }
+            CalWT();
+            for (int i = 0; i < process_n; i++)
+            {
+                process_arr[i].WT = wt[i];
+            }
+            CalNTT();
+            for (int i = 0; i < process_n; i++)
+            {
+                process_arr[i].NTT = ntt[i];
+            }
+            for (int i = 0; i < process_n; i++)
+            {
+                bt[i] = process_arr[i].RBT;
+            }
+            for (int i = 0; i < processor_n; i++)
+            {
+                power[i] = processor_arr[i].power;
+            }
+        }
 
         public void SRTN()
         {
@@ -718,10 +934,10 @@ namespace ConsoleApp1
     {
         static void Main(string[] args)
         {
-            int[] atr = { 0, 2, 4, 2 };
-            int[] btr = { 10, 8, 6, 6 };
-            Schedul s = new Schedul(4, 2, 1, atr, btr, 3);
-            s.SRTN();
+            int[] atr = { 0, 1, 3, 5, 6 };
+            int[] btr = { 3, 7, 2, 5, 3 };
+            Schedul s = new Schedul(5, 1, 0, atr, btr, 3);
+            s.HRRN();
             foreach (int n in s.wt)
             {
                 Console.Write(n + ", ");
